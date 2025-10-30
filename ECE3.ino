@@ -1,76 +1,123 @@
-// Base code.
-// 
-// *  NOTE: this code will do only three things:
-// *    --rotate one wheel, and 
-// *    --blink the right front mainboard LED.
-// *    
-// *  You will need to add more code to
-// *  make the car do anything useful. 
-// 
+#include <ECE3.h>
+uint16_t sensorValues[8]; // right -> left, 0 -> 7
 
-//#include <ECE3_LCD7.h>
-
-//uint16_t sensorValues[8]; // right -> left, 0 -> 7
-
-//left side
+// Motor Constants
+// left side
 const int left_nslp_pin=31; // nslp ==> awake & ready for PWM
 const int left_dir_pin=29;
 const int left_pwm_pin=40;
-
-//right side
+// right side
 const int right_nslp_pin=11; // nslp ==> awake & ready for PWM
 const int right_dir_pin=30;
 const int right_pwm_pin=39;
 
-const int LED_RF = 41;
+// Minimum Constants
+int min1 = 734;
+int min2 = 619;
+int min3 = 664;
+int min4 = 596;
+int min5 = 619;
+int min6 = 664;
+int min7 = 711;
+int min8 = 734;
+const int min[8] = {min1, min2, min3, min4,
+                          min5, min6, min7, min8};
+// Maximum Constants
+int max1 = 1766;
+int max2 = 1881;
+int max3 = 1836;
+int max4 = 1904;
+int max5 = 1881;
+int max6 = 1836;
+int max7 = 1789;
+int max8 = 1766;
+const int max[8] = {max1, max2, max3, max4,
+                          max5, max6, max7, max8};
+
+// Phototransisters Constants (Left -> Right)
+int photoPin1 = 65; 
+int photoPin2 = 48;
+int photoPin3 = 64;
+int photoPin4 = 47;
+int photoPin5 = 52;
+int photoPin6 = 68;
+int photoPin7 = 53;
+int photoPin8 = 69;
+const int photoPins[8] = {photoPin1, photoPin2, photoPin3, photoPin4,
+                          photoPin5, photoPin6, photoPin7, photoPin8};
+
+// IR Emitters Constants
+const int IR_LED_odd = 45;
+const int IR_LED_even = 61;
+
+//Base Speed
+int leftSpd = 50;
+int rightSpd = 50;
+
+// PID (arbutarity 50)
+// if kp is negative, speed left motor, slow down right motor
+const double kp = 0.01;
+const double kd = 0.1;
+double error = 0; // Some value from fusion output we will use?
+double prevError = 0;
+
+
+// Define the weighting of the pins using (15-14-12-8)/8 weighting
+// Thought Process is that you add up the photopin values, left as negative, right as positive
+double photoWeight1 = -15;
+double photoWeight2 = -14;
+double photoWeight3 = -12;
+double photoWeight4 = -8;
+double photoWeight5 = 8;
+double photoWeight6 = 12;
+double photoWeight7 = 14;
+double photoWeight8 = 15;
+const double photoWeight[8] = {photoWeight1, photoWeight2, photoWeight3, photoWeight4,
+                          photoWeight5, photoWeight6, photoWeight7, photoWeight8};
 
 ///////////////////////////////////
 void setup() {
-// put your setup code here, to run once:
-
-//left
+// left
   pinMode(left_nslp_pin,OUTPUT);
   pinMode(left_dir_pin,OUTPUT);
   pinMode(left_pwm_pin,OUTPUT);
-
   digitalWrite(left_dir_pin,LOW);
   digitalWrite(left_nslp_pin,HIGH);
-
-//right
+// right
   pinMode(right_nslp_pin,OUTPUT);
   pinMode(right_dir_pin,OUTPUT);
   pinMode(right_pwm_pin,OUTPUT);
-
-  digitalWrite(right_dir_pin,HIGH);
-  digitalWrite(right_nslp_pin,HIGH);
-
-  pinMode(LED_RF, OUTPUT);
-  
-  //ECE3_Init();
-
-// set the data rate in bits/second for serial data transmission
-  Serial.begin(9600); 
-  delay(2000); //Wait 2 seconds before starting 
+  digitalWrite(right_dir_pin,LOW);
+  digitalWrite(right_nslp_pin,HIGH);  
+// ir emmiters
+  pinMode(IR_LED_odd, OUTPUT);
+  pinMode(IR_LED_even, OUTPUT);
+  digitalWrite(IR_LED_odd, HIGH);
+  digitalWrite(IR_LED_even, HIGH);
   
 }
 
 void loop() {
-  // put your main code here, to run repeatedly: 
-  int leftSpd = 70;
-  int rightSpd = 70;
+  ECE3_read_IR(sensorValues);
 
-  //ECE3_read_IR(sensorValues);
+  int sensorSum = 0;
+  for (int i = 0; i < 8; i++) {
+    sensorValues[i] -= min[i];
+    if (sensorValues[i] < 0) sensorValues[i] = 0;
+    sensorValues[i] /= (double)(max[i]-min[i]);
+    sensorValues[i] *= 1000;
+    sensorValues[i] *= photoWeight[i];
+    sensorSum += sensorValues[i];
+  }
+  error = sensorSum/8;
 
+  double diffSum = error - prevError;
+  double pidSum = kp*error + kd*diffSum;
+
+  leftSpd += pidSum;
+  rightSpd -= pidSum;
   analogWrite(left_pwm_pin,leftSpd);
-  analogWrite(right_pwm_pin,rightSpd);
+  analogWrite(right_pwm_pin,rightSpd);  
 
-// 
-  
-  //ECE3_read_IR(sensorValues);
-
-  digitalWrite(LED_RF, HIGH);
-  delay(250);
-  digitalWrite(LED_RF, LOW);
-  delay(250);
-    
+  prevError = error;
   }
