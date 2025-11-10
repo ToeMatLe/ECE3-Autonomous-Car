@@ -51,28 +51,28 @@ const int IR_LED_odd = 45;
 const int IR_LED_even = 61;
 
 //Base Speed
-int leftSpd = 50;
-int rightSpd = 50;
+int leftSpd = 0;
+int rightSpd = 0;
 
 // PID (arbutarity 50)
 // if kp is negative, speed left motor, slow down right motor
-const double kp = 0.01;
-const double kd = 0.1;
-double error = 0; // Some value from fusion output we will use?
-double prevError = 0;
+const int kp = 0.01;
+const int kd = 0.1;
+int error = 0; // Some value from fusion output we will use?
+int prevError = 0;
 
 
 // Define the weighting of the pins using (15-14-12-8)/8 weighting
 // Thought Process is that you add up the photopin values, left as negative, right as positive
-double photoWeight1 = -15;
-double photoWeight2 = -14;
-double photoWeight3 = -12;
-double photoWeight4 = -8;
-double photoWeight5 = 8;
-double photoWeight6 = 12;
-double photoWeight7 = 14;
-double photoWeight8 = 15;
-const double photoWeight[8] = {photoWeight1, photoWeight2, photoWeight3, photoWeight4,
+int photoWeight1 = -15;
+int photoWeight2 = -14;
+int photoWeight3 = -12;
+int photoWeight4 = -8;
+int photoWeight5 = 8;
+int photoWeight6 = 12;
+int photoWeight7 = 14;
+int photoWeight8 = 15;
+const int photoWeight[8] = {photoWeight1, photoWeight2, photoWeight3, photoWeight4,
                           photoWeight5, photoWeight6, photoWeight7, photoWeight8};
 
 ///////////////////////////////////
@@ -101,18 +101,21 @@ void loop() {
   ECE3_read_IR(sensorValues);
 
   int sensorSum = 0;
+  int min = min[i];
+  int max = max[i]
   for (int i = 0; i < 8; i++) {
-    sensorValues[i] -= min[i];
+    sensorValues[i] -= min;
     if (sensorValues[i] < 0) sensorValues[i] = 0;
-    sensorValues[i] /= (double)(max[i]-min[i]);
     sensorValues[i] *= 1000;
+    sensorValues[i] /= max;
     sensorValues[i] *= photoWeight[i];
     sensorSum += sensorValues[i];
   }
   error = sensorSum/8;
+  Serial.print(error);
 
-  double diffSum = error - prevError;
-  double pidSum = kp*error + kd*diffSum;
+  int diffSum = error - prevError;
+  int pidSum = kp*error + kd*diffSum;
 
   leftSpd += pidSum;
   rightSpd -= pidSum;
