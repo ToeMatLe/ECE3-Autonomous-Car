@@ -51,14 +51,13 @@ const int IR_LED_odd = 45;
 const int IR_LED_even = 61;
 
 //Base Speed
-int leftSpd = 0;
-int rightSpd = 0;
+int leftSpd = 50;
+int rightSpd = 50;
 
 // PID (arbutarity 50)
 // if kp is negative, speed left motor, slow down right motor
 const int kp = 0.01;
 const int kd = 0.1;
-int error = 0; // Some value from fusion output we will use?
 int prevError = 0;
 
 
@@ -77,6 +76,7 @@ const int photoWeight[8] = {photoWeight1, photoWeight2, photoWeight3, photoWeigh
 
 ///////////////////////////////////
 void setup() {
+  ECE3_Init();
 // left
   pinMode(left_nslp_pin,OUTPUT);
   pinMode(left_dir_pin,OUTPUT);
@@ -95,32 +95,52 @@ void setup() {
   digitalWrite(IR_LED_odd, HIGH);
   digitalWrite(IR_LED_even, HIGH);
   
+  Serial.begin(9600);
+  delay(1000);
 }
 
 void loop() {
   ECE3_read_IR(sensorValues);
+  // int result = 0;
+  // for (int i = 0; i < 8; i++) {
+  // result = sensorValues[i] - min[i];
+  // result *= 1000;
+  // result /= max[i];
+  //   Serial.print(result);
+  //   Serial.print(", ");
+  // }
+  // Serial.println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+  // delay(1000);
 
+  int error = 0;
   int sensorSum = 0;
-  int min = min[i];
-  int max = max[i]
+  int result; 
   for (int i = 0; i < 8; i++) {
-    sensorValues[i] -= min;
-    if (sensorValues[i] < 0) sensorValues[i] = 0;
-    sensorValues[i] *= 1000;
-    sensorValues[i] /= max;
-    sensorValues[i] *= photoWeight[i];
-    sensorSum += sensorValues[i];
+    result = sensorValues[i] - min[i];
+    result *= 1000;
+    result /= max[i];
+    if (result < 0) result = 0;
+    result *= photoWeight[i];
+    sensorSum += result;
   }
   error = sensorSum/8;
-  Serial.print(error);
+  Serial.println(error);
+  Serial.println();
+  delay(100);
 
   int diffSum = error - prevError;
   int pidSum = kp*error + kd*diffSum;
 
-  leftSpd += pidSum;
-  rightSpd -= pidSum;
+  // If the error is very small, we want it to keep going straight, no change
+  if(error < 150 && error > -150) {
+    leftSpd = rightSpd; 
+  }
+  else {
+    leftSpd += pidSum;
+    rightSpd -= pidSum;
+  }
   analogWrite(left_pwm_pin,leftSpd);
   analogWrite(right_pwm_pin,rightSpd);  
-
+  
   prevError = error;
   }
