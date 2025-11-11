@@ -51,13 +51,14 @@ const int IR_LED_odd = 45;
 const int IR_LED_even = 61;
 
 //Base Speed
-int leftSpd = 50;
-int rightSpd = 50;
+int leftSpd = 0;
+int rightSpd = 0;
+int baseSpeed = 10;
 
 // PID (arbutarity 50)
 // if kp is negative, speed left motor, slow down right motor
-const int kp = 0.01;
-const int kd = 0.1;
+const int kp = 3;
+const int kd = 1;
 int prevError = 0;
 
 
@@ -124,20 +125,21 @@ void loop() {
     sensorSum += result;
   }
   error = sensorSum/8;
-  Serial.println(error);
-  Serial.println();
-  delay(100);
+  // Serial.println(error);
+  // Serial.println();
+  // delay(100);
 
   int diffSum = error - prevError;
-  int pidSum = kp*error + kd*diffSum;
+  int pidSum = kp*error/100 + kd*diffSum/100;
 
   // If the error is very small, we want it to keep going straight, no change
   if(error < 150 && error > -150) {
-    leftSpd = rightSpd; 
+    leftSpd = baseSpeed;
+    rightSpd = baseSpeed; 
   }
   else {
-    leftSpd += pidSum;
-    rightSpd -= pidSum;
+    leftSpd = baseSpeed + pidSum;
+    rightSpd = baseSpeed - pidSum;
   }
   analogWrite(left_pwm_pin,leftSpd);
   analogWrite(right_pwm_pin,rightSpd);  
