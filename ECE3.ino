@@ -3,48 +3,21 @@ uint16_t sensorValues[8]; // right -> left, 0 -> 7
 
 // Motor Constants
 // left side
-const int left_nslp_pin=31; // nslp ==> awake & ready for PWM
+const int left_nslp_pin=31; 
 const int left_dir_pin=29;
 const int left_pwm_pin=40;
 // right side
-const int right_nslp_pin=11; // nslp ==> awake & ready for PWM
+const int right_nslp_pin=11; 
 const int right_dir_pin=30;
 const int right_pwm_pin=39;
 
 // Minimum Constants
-int min1 = 734;
-int min2 = 619;
-int min3 = 664;
-int min4 = 596;
-int min5 = 619;
-int min6 = 664;
-int min7 = 711;
-int min8 = 734;
-const int min[8] = {min1, min2, min3, min4,
-                          min5, min6, min7, min8};
+const int min[8] = {734, 619, 664, 596, 619, 664, 711, 734};
 // Maximum Constants
-int max1 = 1766;
-int max2 = 1881;
-int max3 = 1836;
-int max4 = 1904;
-int max5 = 1881;
-int max6 = 1836;
-int max7 = 1789;
-int max8 = 1766;
-const int max[8] = {max1, max2, max3, max4,
-                          max5, max6, max7, max8};
+const int max[8] = {1766, 1881, 1836, 1904, 1881, 1836, 1789, 1766};
 
 // Phototransisters Constants (Left -> Right)
-int photoPin1 = 65; 
-int photoPin2 = 48;
-int photoPin3 = 64;
-int photoPin4 = 47;
-int photoPin5 = 52;
-int photoPin6 = 68;
-int photoPin7 = 53;
-int photoPin8 = 69;
-const int photoPins[8] = {photoPin1, photoPin2, photoPin3, photoPin4,
-                          photoPin5, photoPin6, photoPin7, photoPin8};
+const int photoPins[8] = {65, 48, 64, 47, 52, 68, 53, 69};
 
 // IR Emitters Constants
 const int IR_LED_odd = 45;
@@ -53,29 +26,31 @@ const int IR_LED_even = 61;
 //Base Speed
 int leftSpd = 0;
 int rightSpd = 0;
-int baseSpeed = 10;
+int baseSpeed = 25;
 
 // PID (arbutarity 50)
 // if kp is negative, speed left motor, slow down right motor
-const int kp = 3;
-const int kd = 1;
+int kp = 800;
+int kd = 12;
 int prevError = 0;
-
 
 // Define the weighting of the pins using (15-14-12-8)/8 weighting
 // Thought Process is that you add up the photopin values, left as negative, right as positive
-int photoWeight1 = -15;
-int photoWeight2 = -14;
-int photoWeight3 = -12;
-int photoWeight4 = -8;
-int photoWeight5 = 8;
-int photoWeight6 = 12;
-int photoWeight7 = 14;
-int photoWeight8 = 15;
-const int photoWeight[8] = {photoWeight1, photoWeight2, photoWeight3, photoWeight4,
-                          photoWeight5, photoWeight6, photoWeight7, photoWeight8};
+int photoWeight[8] = {-15, -14, -12, -8, 8, 12, 14, 15};
 
-///////////////////////////////////
+// Variables to caclulate error in sensor fusion
+int error;
+int sensorSum;
+int result; 
+
+bool isOnLine();
+int lineCount = 0;
+int phantomDetect = 0;
+const int TURN_TIME = 700;  // ms you measured for ~225°
+bool turning = false;
+int turnStart = 0;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
   ECE3_Init();
 // left
@@ -104,18 +79,17 @@ void loop() {
   ECE3_read_IR(sensorValues);
   // int result = 0;
   // for (int i = 0; i < 8; i++) {
-  // result = sensorValues[i] - min[i];
-  // result *= 1000;
-  // result /= max[i];
-  //   Serial.print(result);
+  // // result = sensorValues[i] - min[i];
+  // // result *= 1000;
+  // // result /= max[i];
+  //   Serial.print(sensorValues[i]);
   //   Serial.print(", ");
   // }
   // Serial.println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
   // delay(1000);
-
-  int error = 0;
-  int sensorSum = 0;
-  int result; 
+  
+  error = 0;
+  sensorSum = 0;
   for (int i = 0; i < 8; i++) {
     result = sensorValues[i] - min[i];
     result *= 1000;
@@ -130,19 +104,83 @@ void loop() {
   // delay(100);
 
   int diffSum = error - prevError;
-  int pidSum = kp*error/100 + kd*diffSum/100;
+  int pidSum = kp*error/100000 + kd*diffSum/10000;
 
-  // If the error is very small, we want it to keep going straight, no change
-  if(error < 150 && error > -150) {
-    leftSpd = baseSpeed;
-    rightSpd = baseSpeed; 
-  }
-  else {
-    leftSpd = baseSpeed + pidSum;
-    rightSpd = baseSpeed - pidSum;
-  }
+  leftSpd = baseSpeed - pidSum;
+  rightSpd = baseSpeed + pidSum;
   analogWrite(left_pwm_pin,leftSpd);
   analogWrite(right_pwm_pin,rightSpd);  
   
   prevError = error;
+  
+// If we are currently turning, keep turning until TURN_TIME elapsed
+  if (turning && lineCount == 1) {
+    if (millis() - turnStart < TURN_TIME) {
+      // spin in place: left backward, right forward
+      digitalWrite(left_dir_pin, HIGH);   // adjust if your wiring is opposite
+      digitalWrite(right_dir_pin, LOW);
+
+      analogWrite(left_pwm_pin,  140);
+      analogWrite(right_pwm_pin, 140);
+      return; // skip rest of loop while turning
+    } else {
+      digitalWrite(left_dir_pin, LOW);  
+      digitalWrite(right_dir_pin, LOW);
+      //Give right weighting less power
+      photoWeight[0] = -15;
+      photoWeight[1] = -14;
+      photoWeight[2] = -12;
+      photoWeight[3] = -15;
+      photoWeight[4] = 15;
+      photoWeight[5] = 14;
+      photoWeight[6] = 20;
+      photoWeight[7] = 24;
+      turning = false;
+    }
   }
+
+  // If we're NOT already turning, check for line hit
+  if (!turning && isOnLine()) {
+  // stop briefly on the line
+    analogWrite(left_pwm_pin, 0);
+    analogWrite(right_pwm_pin, 0);
+    if (isOnLine()) {
+      phantomDetect += 1;
+    } else {
+      phantomDetect = 0;
+    }
+    
+    // start turn
+    if (phantomDetect >= 2 && lineCount == 0){
+      lineCount += 1;
+      phantomDetect = 0;
+      turning = true;
+      turnStart = millis();
+    } else if(phantomDetect >= 2 && lineCount == 1) {
+      // Change weights back to normal, delay to check
+      phantomDetect = 0;
+      lineCount += 1;
+      kp = 700;
+      photoWeight[0] = -15;
+      photoWeight[1] = -14;
+      photoWeight[2] = -12;
+      photoWeight[3] = -8;
+      photoWeight[4] = 8;
+      photoWeight[5] = 12;
+      photoWeight[6] = 14;
+      photoWeight[7] = 15;
+      delay(3000);
+    }
+    return; // next loop iteration will enter the "turning" block
+  }
+}
+///////////////////////////////////////////////////////////////////////////////////////////////
+bool isOnLine() {
+	for (int i = 0; i < 8; i++) {
+    //delay(1);
+    if (sensorValues[i] < 2450) {
+      return false;
+    }
+  }
+  return true;
+}
