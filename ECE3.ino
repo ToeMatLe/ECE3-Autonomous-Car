@@ -77,17 +77,7 @@ void setup() {
 
 void loop() {
   ECE3_read_IR(sensorValues);
-  // int result = 0;
-  // for (int i = 0; i < 8; i++) {
-  // // result = sensorValues[i] - min[i];
-  // // result *= 1000;
-  // // result /= max[i];
-  //   Serial.print(sensorValues[i]);
-  //   Serial.print(", ");
-  // }
-  // Serial.println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-  // delay(1000);
-  
+	
   error = 0;
   sensorSum = 0;
   for (int i = 0; i < 8; i++) {
@@ -99,9 +89,6 @@ void loop() {
     sensorSum += result;
   }
   error = sensorSum/8;
-  // Serial.println(error);
-  // Serial.println();
-  // delay(100);
 
   int diffSum = error - prevError;
   int pidSum = kp*error/100000 + kd*diffSum/10000;
