@@ -26,19 +26,19 @@ const int IR_LED_even = 61;
 //Base Speed
 int leftSpd = 0;
 int rightSpd = 0;
-int baseSpeed = 40;
+int baseSpeed = 29;
 
 // PID (arbutarity 50)
 // if kp is negative, speed left motor, slow down right motor
-int kp = 600;
-int kd = 12;
+int kp = 820;
+int kd = -12;
 int prevError = 0;
 
 // Define the weighting of the pins using (15-14-12-8)/8 weighting
 // Thought Process is that you add up the photopin values, left as negative, right as positive
 
 // slow down speed, more room for correction so all 4 starting positions will work
-int photoWeight[8] = {-15, -14, -12, -8, 8, 12, 14, 15};
+int photoWeight[8] = {-15, -14, -12, -8, 8, 12, 15, 19};
 
 // Variables to caclulate error in sensor fusion
 int error;
@@ -49,9 +49,18 @@ bool isOnLine();
 int lineCount = 0;
 int phantomDetect = 0;
 
-int TURN_TIME = 505;  // ms you measured for ~225°
+// int TURN_TIME = 1200;  // ms you measured for ~225°
 bool turning = false;
-int turnStart = 0;
+long turnStartLeft = 0;
+long turnStartRight = 0;
+// You must calibrate this value!
+const long TURN_COUNTS_225 = 605; // <-- adjust after testing
+
+bool stopByEncoder = false;
+long stopStartLeft = 0;
+long stopStartRight = 0;
+// You must calibrate this too
+const long STOP_COUNTS = 1000;   // <-- adjust after testing
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
@@ -84,127 +93,167 @@ void setup() {
 
 void loop() {
   ECE3_read_IR(sensorValues);
-  // for (int i = 0; i < 8; i++) {
-  //   // result = sensorValues[i] - min[i];
-  //   // result *= 1000;
-  //   // result /= max[i];
-  //   Serial.print(sensorValues[i]);
-  //   Serial.print(", ");
-  // }
-  // Serial.println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-  // delay(1000);
-  
+
+  // --- PID computation as before ---
   result = 0;
   error = 0;
   sensorSum = 0;
   for (int i = 0; i < 8; i++) {
     result = sensorValues[i] - min[i];
     result *= 1000;
-    result /= max[i];
+    result /= (max[i]-min[i]);
     if (result < 0) result = 0;
     result *= photoWeight[i];
     sensorSum += result;
   }
   error = sensorSum/8;
-  // Serial.println(error);
-  // Serial.println();
-  // delay(100); 
 
   int diffSum = error - prevError;
   int pidSum = kp*error/100000 + kd*diffSum/10000;
 
-  leftSpd = baseSpeed - pidSum;
+  leftSpd  = baseSpeed - pidSum;
   rightSpd = baseSpeed + pidSum;
-  analogWrite(left_pwm_pin,leftSpd);
-  analogWrite(right_pwm_pin,rightSpd); 
+  analogWrite(left_pwm_pin,  leftSpd);
+  analogWrite(right_pwm_pin, rightSpd); 
   
   prevError = error;
   
-// If we are currently turning, keep turning until TURN_TIME elapsed
+  // --- If we are currently turning, keep turning until TURN_TIME elapsed ---
   if (turning && lineCount == 1) {
-    if (millis() - turnStart < TURN_TIME) {
-      // spin in place: left backward, right forward
-      digitalWrite(left_dir_pin, HIGH);   // adjust if your wiring is opposite
-      digitalWrite(right_dir_pin, LOW);
+  // how far have we turned? use one wheel or the average
+  long leftDelta  = labs(getLeftCounts()  - turnStartLeft);
+  long rightDelta = labs(getRightCounts() - turnStartRight);
+  long turnDelta  = (leftDelta + rightDelta) / 2;  // or just use one side
 
-      analogWrite(left_pwm_pin,  150);
-      analogWrite(right_pwm_pin, 150);
-      return; // skip rest of loop while turning
-    } else {
-      digitalWrite(left_dir_pin, LOW);  
-      digitalWrite(right_dir_pin, LOW);
-      //Give right weighting less power
-      // COULD TRY, Make weight less instead of increase
-      photoWeight[0] = -12;
-      photoWeight[1] = -12;
-      photoWeight[2] = -12;
-      photoWeight[3] = -15;
-      photoWeight[4] = 15;
-      photoWeight[5] = 14;
-      photoWeight[6] = 20;
-      photoWeight[7] = 24;
-      turning = false;
+  if (turnDelta < TURN_COUNTS_225) {
+    // still turning: spin in place
+    digitalWrite(left_dir_pin,  HIGH);  // backward
+    digitalWrite(right_dir_pin, LOW);   // forward
+
+    analogWrite(left_pwm_pin,  255);
+    analogWrite(right_pwm_pin, 255);
+    return; // skip rest of loop while turning
+  } else {
+    // done turning, go forward again
+    digitalWrite(left_dir_pin,  LOW);
+    digitalWrite(right_dir_pin, LOW);
+
+    // adjust weights
+    photoWeight[0] = -15;
+    photoWeight[1] = -8;
+    photoWeight[2] = -6;
+    photoWeight[3] = -10;
+    photoWeight[4] =  10;
+    photoWeight[5] =  14;
+    photoWeight[6] =  16;
+    photoWeight[7] =  18;
+    baseSpeed = 35;
+    turning = false;
+  }
+}
+if (stopByEncoder) {
+    long leftStopDelta  = labs(getLeftCounts()  - stopStartLeft);
+    long rightStopDelta = labs(getRightCounts() - stopStartRight);
+    long stopDelta      = (leftStopDelta + rightStopDelta) / 2;
+
+    if (stopDelta >= STOP_COUNTS) {
+      // Stop car
+      digitalWrite(left_dir_pin,  HIGH);  // backward
+      digitalWrite(right_dir_pin, LOW);   // forward
+      analogWrite(left_pwm_pin,  255);
+      analogWrite(right_pwm_pin, 255);
+      delay(100);
+      digitalWrite(left_dir_pin,  LOW);  // backward
+      digitalWrite(right_dir_pin, LOW);   // forward
+      analogWrite(left_pwm_pin,  255);
+      analogWrite(right_pwm_pin, 255);
+      delay(50);
+      analogWrite(left_pwm_pin,  0);
+      analogWrite(right_pwm_pin, 0);
+      digitalWrite(yellowled, HIGH); // indicate finished
+
+      // Stop forever
+      while (true) {
+        // do nothing
+      }
     }
+    return;
   }
 
-  // If we're NOT already turning, check for line hit
-  if (!turning && isOnLine()) {
+  // --- Handle line detection only when not turning ---
+ if (!turning && isOnLine()) {
   // stop briefly on the line
     analogWrite(left_pwm_pin, 0);
     analogWrite(right_pwm_pin, 0);
-    delay(1000);
-
-    isOnline() ? phantomDetect += 1 : phantomDetect = 0;
-
+    if (isOnLine()) {
+      phantomDetect += 1;
+    } else {
+      phantomDetect = 0;
+    }
+    
     // start turn
-    if (phantomDetect >= 2 && lineCount == 0){ //225 degree trun
+    if (phantomDetect >= 2 && lineCount == 0){ // Hits cc 225 turn
       lineCount += 1;
       phantomDetect = 0;
       turning = true;
-      turnStart = millis();
-    } else if(phantomDetect >= 2 && lineCount == 1) { // Begin timed run
-      // Change weights back to normal, light turn on to check
-      phantomDetect = 0;
+    } else if(phantomDetect >= 3 && lineCount == 1) { // start timed run
+      // Change weights back to normal, delay to check
       lineCount += 1;
-      // time starts, give right weighting
-      photoWeight[0] = -18;
-      photoWeight[1] = -15;
+      photoWeight[0] = -15;
+      photoWeight[1] = -10;
       photoWeight[2] = -12;
-      photoWeight[3] = -9;
-      photoWeight[4] = 9;
+      photoWeight[3] = -8;
+      photoWeight[4] = 8;
       photoWeight[5] = 12;
       photoWeight[6] = 14;
       photoWeight[7] = 15;
+      analogWrite(left_pwm_pin,  50);
+      analogWrite(right_pwm_pin, 50);
+      delay(15);
       digitalWrite(yellowled, HIGH);
-      baseSpeed = 30;
-    } else if(phantomDetect >= 2 && lineCount == 3) { // End Timed run
-      // ignore two right sensors, delay to check
+      baseSpeed = 25;
       phantomDetect = 0;
+    }  else if(phantomDetect >= 6 && lineCount == 2) { // end timed run
+      // Change weights back to normal, delay to check
       lineCount += 1;
-      photoWeight[0] = 0;
-      photoWeight[1] = 0;
-      photoWeight[2] = -12;
-      photoWeight[3] = -10;
-      photoWeight[4] = 10;
+      photoWeight[0] = -0;
+      photoWeight[1] = -14;
+      photoWeight[2] = -10;
+      photoWeight[3] = -8;
+      photoWeight[4] = 8;
       photoWeight[5] = 12;
       photoWeight[6] = 14;
-      photoWeight[7] = 18;
+      photoWeight[7] = 30;
       digitalWrite(yellowled, LOW);
-      baseSpeed = 50;
-    } else if(phantomDetect >= 2 && lineCount == 3) { // End Timed run
-      // Stop CAR
-      break;
+      analogWrite(left_pwm_pin,  50);
+      analogWrite(right_pwm_pin, 50);
+      delay(15);
+      baseSpeed = 100;
+      phantomDetect = 0;
+      stopByEncoder = true;
+      stopStartLeft  = getLeftCounts();
+      stopStartRight = getRightCounts();
     }
-      return; // next loop iteration will enter the "turning" block
+    return; // next loop iteration will enter the "turning" block
   }
 }
-///////////////////////////////////////////////////////////////////////////////////////////////
-
+/////////////////////////////////////////////////////////////////
 bool isOnLine() {
-	if (sensorValues[0] > 2450 && sensorValues[1] > 2450  && sensorValues[2] > 2450  && sensorValues[3] > 2450  && 
-  sensorValues[4] > 2450  && sensorValues[5] > 2450  && sensorValues[6] > 2450  && sensorValues[7] > 2450) {
+  if (sensorValues[0] > 2450 && sensorValues[1] > 2450 && sensorValues[2] > 2450 && sensorValues[3] > 2450 &&
+      sensorValues[4] > 2450 && sensorValues[5] > 2450 && sensorValues[6] > 2450 && sensorValues[7] > 2450) {
     return true;
   } else {
     return false;
-  };
+  }
+}
+long getLeftCounts() {
+  // TODO: replace with your ECE3 encoder read function
+  return getEncoderCount_left();
+
+}
+
+long getRightCounts() {
+  // TODO: replace with your ECE3 encoder read function
+  return getEncoderCount_right();
+
 }
