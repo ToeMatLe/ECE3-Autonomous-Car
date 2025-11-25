@@ -26,7 +26,7 @@ const int IR_LED_even = 61;
 //Base Speed
 int leftSpd = 0;
 int rightSpd = 0;
-int baseSpeed = 29;
+int baseSpeed = 32;
 
 // PID (arbutarity 50)
 // if kp is negative, speed left motor, slow down right motor
@@ -147,7 +147,8 @@ void loop() {
     photoWeight[5] =  14;
     photoWeight[6] =  16;
     photoWeight[7] =  18;
-    baseSpeed = 35;
+    baseSpeed = 37;
+    kd = -5;
     turning = false;
   }
 }
@@ -196,7 +197,7 @@ if (stopByEncoder) {
       lineCount += 1;
       phantomDetect = 0;
       turning = true;
-    } else if(phantomDetect >= 3 && lineCount == 1) { // start timed run
+    } else if(phantomDetect >= 4 && lineCount == 1) { // start timed run
       // Change weights back to normal, delay to check
       lineCount += 1;
       photoWeight[0] = -15;
@@ -211,8 +212,9 @@ if (stopByEncoder) {
       analogWrite(right_pwm_pin, 50);
       delay(15);
       digitalWrite(yellowled, HIGH);
-      baseSpeed = 25;
+      baseSpeed = 27;
       phantomDetect = 0;
+      kp = 830;
     }  else if(phantomDetect >= 6 && lineCount == 2) { // end timed run
       // Change weights back to normal, delay to check
       lineCount += 1;
@@ -228,13 +230,13 @@ if (stopByEncoder) {
       analogWrite(left_pwm_pin,  50);
       analogWrite(right_pwm_pin, 50);
       delay(15);
-      baseSpeed = 100;
+      baseSpeed = 75;
       phantomDetect = 0;
       stopByEncoder = true;
       stopStartLeft  = getLeftCounts();
       stopStartRight = getRightCounts();
-    }
-    return; // next loop iteration will enter the "turning" block
+    } 
+    return; 
   }
 }
 /////////////////////////////////////////////////////////////////
