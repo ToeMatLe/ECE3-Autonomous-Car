@@ -15,10 +15,16 @@ const int right_pwm_pin  = 39;
 // Light debug pin
 const int yellowled = 51;
 
+//MY HOUSE CALIBRATIONS
 // Minimum Constants
 const int min[8] = {619, 596, 596, 596, 605, 712, 783, 807};
 // Maximum Constants
 const int max[8] = {1881, 1904, 1904, 1904, 1895, 1788, 1717, 1693};
+
+// // Minimum Constants
+// const int min[8] = {734, 619, 664, 596, 619, 664, 711, 734};
+// // Maximum Constants
+// const int max[8] = {1766, 1881, 1836, 1904, 1881, 1836, 1789, 1766};
 
 // IR Emitters Constants
 const int IR_LED_odd  = 45;
