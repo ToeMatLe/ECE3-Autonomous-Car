@@ -33,16 +33,16 @@ const int IR_LED_even = 61;
 // Base Speed
 int leftSpd   = 0;
 int rightSpd  = 0;
-int baseSpeed = 25;
+int baseSpeed = 60;
 
 // PID
 // if kp is negative, speed left motor, slow down right motor
-int kp        = 1100;
+int kp        = 1130;
 int kd        = 0;
 int prevError = 0;
 
 // Weighting for sensors (left negative, right positive)
-int photoWeight[8] = {-15, -14, -12, -12, 12, 12, 14, 15};
+int photoWeight[8] = {-15, -14, -12, -13, 13, 12, 14, 15};
 
 // Variables to calculate error
 int error;
@@ -58,7 +58,7 @@ bool turning        = false;
 long turnStartLeft  = 0;
 long turnStartRight = 0;
 // You must calibrate this value!
-const long TURN_COUNTS_225 = 400; // <-- adjust after testing
+const long TURN_COUNTS_225 = 410; // <-- adjust after testing
 
 // Stop-by-encoder state
 bool stopByEncoder   = false;
@@ -96,7 +96,7 @@ void setup() {
   digitalWrite(yellowled, LOW);
 
   Serial.begin(9600);
-  delay(1000);
+  delay(2000);
 }
 
 void loop() {
@@ -151,22 +151,22 @@ void loop() {
       // done turning, go forward again
       analogWrite(left_pwm_pin,  0);
       analogWrite(right_pwm_pin, 0);
-      delay(800);
+      delay(0);
 
       digitalWrite(left_dir_pin,  LOW);
       digitalWrite(right_dir_pin, LOW);
 
       // adjust weights AFTER turn
-      photoWeight[0] = -16;
+      photoWeight[0] = -17;
       photoWeight[1] = -5;
       photoWeight[2] = -5;
-      photoWeight[3] = -7;
-      photoWeight[4] =  7;
+      photoWeight[3] = -8;
+      photoWeight[4] =  8;
       photoWeight[5] =  14;
-      photoWeight[6] =  15;
-      photoWeight[7] =  16;
+      photoWeight[6] =  16;
+      photoWeight[7] =  18;
 
-      baseSpeed = 40;
+      baseSpeed = 50;
       kp        = 1100;
       turning   = false;
       // continue to PID + line logic in next loop iteration
@@ -230,8 +230,8 @@ void loop() {
       photoWeight[0] = -16;
       photoWeight[1] = -14;
       photoWeight[2] = -12;
-      photoWeight[3] = -9;
-      photoWeight[4] =  9;
+      photoWeight[3] = -10;
+      photoWeight[4] =  10;
       photoWeight[5] =  12;
       photoWeight[6] = 14;
       photoWeight[7] = 16;
@@ -242,9 +242,9 @@ void loop() {
 
       digitalWrite(yellowled, HIGH);
 
-      baseSpeed      = 20;
+      baseSpeed      = 45;
       phantomDetect  = 0;
-      kp             = 900;
+      kp             = 1150;
       return;
     }  
     // 3rd cross: end timed run, start encoder-based stopping
@@ -261,9 +261,9 @@ void loop() {
       photoWeight[7] = 0;
 
       digitalWrite(yellowled, LOW);
-      baseSpeed      = 70;
+      baseSpeed      = 105;
       kp = 800;
-      kd = -10;
+      kd = -45;
       stopByEncoder  = true;
       stopStartLeft  = getLeftCounts();
       stopStartRight = getRightCounts();
