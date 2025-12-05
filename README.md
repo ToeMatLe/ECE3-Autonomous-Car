@@ -1,10 +1,14 @@
 # ECE3-Autonomous-Car
-Final Project for the UCLA ECE3 course
+Final Project for the UCLA ECE3 course. This project implements a fully autonomous line-following robot using IR sensors, motor encoders, a PID controller, and a multi-stage state machine. The robot follows a track, detects multiple “checkpoint” black lines, performs a 225° turn, accelerates through a timed segment, and finally stops itself using encoder feedback. The robot was tuned for speed, stability, and precise checkpoint handling, achieving the fastest completion time of 5.6 seconds in a class of 196 students.
 
-Libraries:
+The code is written for the ECE3 robot platform and uses the ECE3.h library for IR sensor reading and encoder access.
+
+Board:
 - RED LaunchPad w/ msp432p401r EMT (48MHz)
 
 Calibrations:
-- Serial print the 8 sensors to indicate the number where we see white
-- Put this in Excel
-- Found Fusion Output
+- Found Fusion Output:
+  - Each IR channel is mapped from calibrated min/max to a normalized 0–1000 scale
+  - Weighted sum of sensors produces the lateral error signal
+  - u=Kp​e+Kd​(e−eprev​)
+  - vL​=baseSpeed−u,vR​=baseSpeed+u
