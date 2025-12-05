@@ -15,16 +15,10 @@ const int right_pwm_pin  = 39;
 // Light debug pin
 const int yellowled = 51;
 
-//MY HOUSE CALIBRATIONS
 // Minimum Constants
 const int min[8] = {619, 596, 596, 596, 605, 712, 783, 807};
 // Maximum Constants
 const int max[8] = {1881, 1904, 1904, 1904, 1895, 1788, 1717, 1693};
-
-// // Minimum Constants
-// const int min[8] = {734, 619, 664, 596, 619, 664, 711, 734};
-// // Maximum Constants
-// const int max[8] = {1766, 1881, 1836, 1904, 1881, 1836, 1789, 1766};
 
 // IR Emitters Constants
 const int IR_LED_odd  = 45;
@@ -33,16 +27,16 @@ const int IR_LED_even = 61;
 // Base Speed
 int leftSpd   = 0;
 int rightSpd  = 0;
-int baseSpeed = 60;
+int baseSpeed = 70;
 
 // PID
 // if kp is negative, speed left motor, slow down right motor
-int kp        = 1130;
+int kp        = 1200;
 int kd        = 0;
 int prevError = 0;
 
 // Weighting for sensors (left negative, right positive)
-int photoWeight[8] = {-15, -14, -12, -13, 13, 12, 14, 15};
+int photoWeight[8] = {-17, -16, -12, -12, 12, 12, 16, 17};
 
 // Variables to calculate error
 int error;
@@ -58,7 +52,7 @@ bool turning        = false;
 long turnStartLeft  = 0;
 long turnStartRight = 0;
 // You must calibrate this value!
-const long TURN_COUNTS_225 = 410; // <-- adjust after testing
+const long TURN_COUNTS_225 = 380; // <-- adjust after testing
 
 // Stop-by-encoder state
 bool stopByEncoder   = false;
@@ -66,6 +60,14 @@ long stopStartLeft   = 0;
 long stopStartRight  = 0;
 // You must calibrate this too
 const long STOP_COUNTS = 1000;   // <-- adjust after testing
+
+bool donut   = false;
+long donutStartLeft   = 0;
+long donutStartRight  = 0;
+int donutCount = 0;
+const long DONUT_COUNTS1 = 150;   // <-- adjust after testing
+const long DONUT_COUNTS2 = 358 + DONUT_COUNTS1;   // <-- adjust after testing
+const long DONUT_COUNTS3 = 1088 + DONUT_COUNTS2;   // <-- adjust after testing
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
@@ -103,12 +105,61 @@ void loop() {
   // Read sensors
   ECE3_read_IR(sensorValues);
 
-  // ------------------------- STOP BY ENCODER -------------------------
-  if (stopByEncoder) {
-    long leftStopDelta  = labs(getLeftCounts()  - stopStartLeft);
-    long rightStopDelta = labs(getRightCounts() - stopStartRight);
-    long stopDelta      = (leftStopDelta + rightStopDelta) / 2;
-    if (stopDelta >= STOP_COUNTS) {
+   // ------------------------- TURNING PHASE -------------------------
+  if (turning && lineCount == 1) {
+    long leftDelta  = labs(getLeftCounts()  - turnStartLeft);
+    long rightDelta = labs(getRightCounts() - turnStartRight);
+    long turnDelta  = (leftDelta + rightDelta) / 2;  // average or just one side
+
+    if (turnDelta < TURN_COUNTS_225) {
+      // still turning: spin in place
+      digitalWrite(left_dir_pin,  HIGH);  // backward
+      digitalWrite(right_dir_pin, LOW);   // forward
+
+      analogWrite(left_pwm_pin,  255);
+      analogWrite(right_pwm_pin, 255);
+      return; // skip rest of loop while turning
+    } else {
+      // done turning, go forward again
+
+      digitalWrite(left_dir_pin,  LOW);
+      digitalWrite(right_dir_pin, LOW);
+
+      // adjust weights AFTER turn
+      photoWeight[0] = -15;
+      photoWeight[1] = -15;
+      photoWeight[2] = -3;
+      photoWeight[3] = -6;
+      photoWeight[4] =  6;
+      photoWeight[5] =  12;
+      photoWeight[6] =  13;
+      photoWeight[7] =  15;
+
+      baseSpeed = 55;
+      kp        = 990;
+      turning   = false;
+      // continue to PID + line logic in next loop iteration
+    }
+  }
+  // ------------------------- DONUT PHASE -------------------------
+  if (donut) {
+    long leftDonutDelta  = labs(getLeftCounts()  - donutStartLeft);
+    long rightDonutDelta = labs(getRightCounts() - donutStartRight);
+    long donutDelta      = (leftDonutDelta + rightDonutDelta) / 2;
+    
+    if (donutDelta < DONUT_COUNTS1) {
+      analogWrite(left_pwm_pin,  255);
+      analogWrite(right_pwm_pin, 255); 
+      return;
+    } else if (donutDelta < DONUT_COUNTS2) {
+      analogWrite(left_pwm_pin,  255);
+      analogWrite(right_pwm_pin, 0); 
+      return;
+    } else if (donutDelta < DONUT_COUNTS3) {
+      analogWrite(left_pwm_pin,  255);
+      analogWrite(right_pwm_pin, 255); 
+      return;
+    } else {
       // "Brake" / stop car with a little reverse/forward wiggle
       digitalWrite(left_dir_pin,  HIGH);  // backward
       digitalWrite(right_dir_pin, LOW);   // forward
@@ -130,49 +181,8 @@ void loop() {
       while (true) {
         // do nothing
       }
-    } 
-  }
-
-  // ------------------------- TURNING PHASE -------------------------
-  if (turning && lineCount == 1) {
-    long leftDelta  = labs(getLeftCounts()  - turnStartLeft);
-    long rightDelta = labs(getRightCounts() - turnStartRight);
-    long turnDelta  = (leftDelta + rightDelta) / 2;  // average or just one side
-
-    if (turnDelta < TURN_COUNTS_225) {
-      // still turning: spin in place
-      digitalWrite(left_dir_pin,  HIGH);  // backward
-      digitalWrite(right_dir_pin, LOW);   // forward
-
-      analogWrite(left_pwm_pin,  255);
-      analogWrite(right_pwm_pin, 255);
-      return; // skip rest of loop while turning
-    } else {
-      // done turning, go forward again
-      analogWrite(left_pwm_pin,  0);
-      analogWrite(right_pwm_pin, 0);
-      delay(0);
-
-      digitalWrite(left_dir_pin,  LOW);
-      digitalWrite(right_dir_pin, LOW);
-
-      // adjust weights AFTER turn
-      photoWeight[0] = -17;
-      photoWeight[1] = -5;
-      photoWeight[2] = -5;
-      photoWeight[3] = -8;
-      photoWeight[4] =  8;
-      photoWeight[5] =  14;
-      photoWeight[6] =  16;
-      photoWeight[7] =  18;
-
-      baseSpeed = 50;
-      kp        = 1100;
-      turning   = false;
-      // continue to PID + line logic in next loop iteration
     }
   }
-
   // ------------------------- NORMAL PID LINE FOLLOWING -------------------------
   // Only do PID if we’re not currently turning
   if (!turning) {
@@ -230,45 +240,22 @@ void loop() {
       photoWeight[0] = -16;
       photoWeight[1] = -14;
       photoWeight[2] = -12;
-      photoWeight[3] = -10;
-      photoWeight[4] =  10;
+      photoWeight[3] = -9;
+      photoWeight[4] =  9;
       photoWeight[5] =  12;
       photoWeight[6] = 14;
       photoWeight[7] = 16;
 
-      analogWrite(left_pwm_pin,  200);
-      analogWrite(right_pwm_pin, 200);
-      delay(80);
-
       digitalWrite(yellowled, HIGH);
 
-      baseSpeed      = 45;
+      baseSpeed      = 50;
       phantomDetect  = 0;
-      kp             = 1150;
+      donut = true;
+      // IMPORTANT: record encoder start counts for turn
+      donutStartLeft   = getLeftCounts();
+      donutStartRight  = getRightCounts();
       return;
     }  
-    // 3rd cross: end timed run, start encoder-based stopping
-    else if (phantomDetect >= 2 && lineCount == 2) { 
-      lineCount += 1;
-
-      photoWeight[0] = -0;
-      photoWeight[1] =  -0;
-      photoWeight[2] = -10;
-      photoWeight[3] = -20;
-      photoWeight[4] = 20;
-      photoWeight[5] = 10;
-      photoWeight[6] = 0;
-      photoWeight[7] = 0;
-
-      digitalWrite(yellowled, LOW);
-      baseSpeed      = 105;
-      kp = 800;
-      kd = -45;
-      stopByEncoder  = true;
-      stopStartLeft  = getLeftCounts();
-      stopStartRight = getRightCounts();
-      return;
-    }
   }
 }
 
