@@ -6,12 +6,32 @@ The code is written for the ECE3 robot platform and uses the ECE3.h library for 
 Board:
 - RED LaunchPad w/ msp432p401r EMT (48MHz)
 
-Calibrations:
-- Found Fusion Output:
-  - Each IR channel is mapped from calibrated min/max to a normalized 0–1000 scale:
-    - vi = 1000 * (si​−mini)/(maxi-mini)
-  - Weighted sum of sensors produces the lateral error signal:
-    -  e = 1/8 * sum(wi*vi)
-  - PID Steering
-    - u=Kp​e+Kd​(e−eprev​)
-    - vL​=baseSpeed−u,vR​=baseSpeed+u
+## Calibrations (Control Equations)
+
+### IR Normalization
+Each IR sensor reading is mapped from calibrated min/max to a normalized 0–1000 scale:
+
+$$
+v_i = 1000 \cdot \frac{s_i - \text{min}_i}{\text{max}_i - \text{min}_i}
+$$
+
+### Lateral Error Calculation
+Weighted sum of sensors produces the line-following error:
+
+$$
+e = \frac{1}{8} \sum_{i=1}^{8} w_i v_i
+$$
+
+### PID Steering
+The steering correction is:
+
+$$
+u = K_p e + K_d (e - e_{\text{prev}})
+$$
+
+Motor speeds are:
+
+$$
+v_L = \text{baseSpeed} - u,\quad v_R = \text{baseSpeed} + u
+$$
+
