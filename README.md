@@ -5,7 +5,7 @@ This project implements a fully autonomous line-following robot using IR sensors
 
 The code is written for the ECE3 robot platform and uses the ECE3.h library for IR sensor reading and encoder access.
 
-Board:
+## Board:
 - RED LaunchPad w/ msp432p401r EMT (48MHz)
 
 ## Calibrations (Control Equations)
