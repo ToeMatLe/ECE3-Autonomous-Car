@@ -8,7 +8,10 @@ Board:
 
 Calibrations:
 - Found Fusion Output:
-  - Each IR channel is mapped from calibrated min/max to a normalized 0–1000 scale
-  - Weighted sum of sensors produces the lateral error signal
-  - u=Kp​e+Kd​(e−eprev​)
-  - vL​=baseSpeed−u,vR​=baseSpeed+u
+  - Each IR channel is mapped from calibrated min/max to a normalized 0–1000 scale:
+    - vi = 1000 * (si​−mini)/(maxi-mini)
+  - Weighted sum of sensors produces the lateral error signal:
+    -  e = 1/8 * sum(wi*vi)
+  - PID Steering
+    - u=Kp​e+Kd​(e−eprev​)
+    - vL​=baseSpeed−u,vR​=baseSpeed+u
